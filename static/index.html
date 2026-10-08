@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YT Album</title>
+<style>
+  :root {
+    --bg: #121212; --panel: #1b1b1b; --panel2: #242424; --line: #2e2e2e;
+    --text: #ececec; --muted: #9a9a9a; --accent: #e8b04a; --ok: #6fcf8e; --warn: #e8904a; --err: #ef6a6a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  button, input { font: inherit; color: inherit; }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 18px 24px 8px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: .5px; }
+  header h1 span { color: var(--accent); }
+  .path { color: var(--muted); font-size: 12px; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; padding: 8px 24px 24px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  .searchbar { display: flex; gap: 8px; margin-bottom: 10px; }
+  .searchbar input { flex: 1; min-width: 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 11px 14px; outline: none; }
+  .searchbar input:focus { border-color: var(--accent); }
+  .btn { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 16px; cursor: pointer; white-space: nowrap; }
+  .btn:hover { border-color: #555; }
+  .btn.primary { background: var(--accent); color: #1a1a1a; border-color: var(--accent); font-weight: 600; }
+  .btn.primary:disabled { opacity: .45; cursor: default; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tab { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px; cursor: pointer; color: var(--muted); }
+  .tab.on { color: #1a1a1a; background: var(--text); border-color: var(--text); }
+  .hint { color: var(--muted); padding: 30px 0; text-align: center; }
+  .error { color: var(--err); padding: 12px 0; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+  .card { cursor: pointer; border-radius: 10px; padding: 8px; transition: background .15s; }
+  .card:hover { background: var(--panel2); }
+  .card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: var(--panel2); display: block; }
+  .card .t { margin-top: 8px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .s { color: var(--muted); font-size: 12px; }
+
+  .songs { display: flex; flex-direction: column; }
+  .song { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+  .song:hover { background: var(--panel2); }
+  .song img { width: 48px; height: 48px; border-radius: 4px; object-fit: cover; background: var(--panel2); }
+  .song .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .song .s { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .album { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .back { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0; margin-bottom: 14px; }
+  .back:hover { color: var(--text); }
+  .ahead { display: flex; gap: 20px; flex-wrap: wrap; }
+  .ahead img { width: 200px; max-width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
+  .ahead .info { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 6px; }
+  .ahead h2 { margin: 0; font-size: 24px; }
+  .meta { color: var(--muted); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .chip { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; cursor: pointer; background: none; color: var(--muted); }
+  .chip:hover { color: var(--text); border-color: #555; }
+  .note { background: #2a2416; border: 1px solid #4d4020; color: #f0d9a6; border-radius: 8px; padding: 8px 12px; margin-top: 14px; }
+  .tracks { margin-top: 18px; border-top: 1px solid var(--line); }
+  .track { display: grid; grid-template-columns: 28px 30px minmax(0, 1fr) auto 50px; gap: 8px; align-items: center; padding: 7px 4px; border-bottom: 1px solid var(--line); }
+  .track.off { opacity: .45; }
+  .track .num { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  .track .dur { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  .track .ttl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badges { display: flex; gap: 4px; }
+  .badge { font-size: 11px; border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+  .b-have { background: #1d3325; color: var(--ok); }
+  .b-clip { background: #3a2a1a; color: var(--warn); }
+  .b-sus { background: #2a2a2a; color: var(--muted); }
+  .b-na { background: #3a1d1d; color: var(--err); }
+  .actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+  .actions input { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; width: 180px; }
+  .actions .sel { color: var(--muted); font-size: 12px; cursor: pointer; text-decoration: underline; }
+  input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+
+  aside { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; align-self: start; position: sticky; top: 16px; }
+  aside h3 { margin: 0 0 12px; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
+  aside h3 button { font-size: 12px; background: none; border: none; color: var(--muted); cursor: pointer; }
+  .job { padding: 10px 0; border-top: 1px solid var(--line); }
+  .job .l { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .job .st { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .job .st.ok { color: var(--ok); } .job .st.err { color: var(--err); white-space: normal; }
+  .bar { height: 4px; background: var(--panel2); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .bar div { height: 100%; background: var(--accent); transition: width .4s; }
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--muted); border-top-color: transparent; border-radius: 50%; animation: s 0.8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>YT <span>Album</span></h1>
+  <div class="path" id="path"></div>
+</header>
+<main>
+  <section>
+    <form class="searchbar" id="form">
+      <input id="q" placeholder="Artiste, album, titre… ou colle un lien YouTube" autocomplete="off" autofocus>
+      <button class="btn primary">Chercher</button>
+    </form>
+    <div class="tabs">
+      <button class="tab on" data-kind="albums">Albums</button>
+      <button class="tab" data-kind="songs">Titres</button>
+    </div>
+    <div id="view"><div class="hint">Cherche un album ou un titre, ou colle directement un lien YouTube / YouTube Music.</div></div>
+  </section>
+  <aside>
+    <h3>File d'attente <button id="clear">Effacer les terminés</button></h3>
+    <div id="jobs"><div class="st" style="color:var(--muted);font-size:12px">Rien pour l'instant.</div></div>
+  </aside>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let kind = 'albums', lastResults = null;
+
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || r.statusText);
+  return d;
+}
+function loading(msg) { $('#view').innerHTML = `<div class="hint"><span class="spin"></span>${esc(msg)}</div>`; }
+function fail(e) { $('#view').innerHTML = `<div class="error">${esc(e.message || e)}</div>`; }
+
+// ---------- Recherche ----------
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
+  kind = t.dataset.kind;
+  if ($('#q').value.trim()) search();
+});
+$('#form').onsubmit = e => { e.preventDefault(); search(); };
+
+async function search() {
+  const q = $('#q').value.trim();
+  if (!q) return;
+  try {
+    if (/^https?:\/\//i.test(q) || /youtu/.test(q)) {
+      loading('Analyse du lien…');
+      return showResolved(await api('/api/resolve?url=' + encodeURIComponent(q)));
+    }
+    loading('Recherche…');
+    lastResults = { kind, items: await api(`/api/search?kind=${kind}&q=` + encodeURIComponent(q)) };
+    renderResults();
+  } catch (e) { fail(e); }
+}
+
+function renderResults() {
+  const { kind, items } = lastResults;
+  if (!items.length) return $('#view').innerHTML = '<div class="hint">Aucun résultat.</div>';
+  if (kind === 'albums') {
+    $('#view').innerHTML = '<div class="grid">' + items.map((a, i) => `
+      <div class="card" data-i="${i}">
+        <img src="${esc(a.cover)}" alt="" loading="lazy">
+        <div class="t" title="${esc(a.title)}">${esc(a.title)}</div>
+        <div class="s">${esc(a.artist)} · ${esc(a.type)}${a.year ? ' · ' + esc(a.year) : ''}</div>
+      </div>`).join('') + '</div>';
+    document.querySelectorAll('.card').forEach(c => c.onclick = () => openAlbum(items[c.dataset.i].browseId));
+  } else {
+    $('#view').innerHTML = '<div class="songs">' + items.map((s, i) => `
+      <div class="song" data-i="${i}">
+        <img src="${esc(s.cover)}" alt="" loading="lazy">
+        <div><div class="t">${esc(s.title)}</div><div class="s">${esc(s.artist)}${s.album ? ' · ' + esc(s.album) : ''}</div></div>
+        <div class="s">${esc(s.duration)}</div>
+      </div>`).join('') + '</div>';
+    document.querySelectorAll('.song').forEach(c => c.onclick = async () => {
+      loading('Recherche de l\'album d\'origine…');
+      try { showResolved(await api('/api/song/' + items[c.dataset.i].videoId)); } catch (e) { fail(e); }
+    });
+  }
+}
+
+async function openAlbum(id) {
+  loading('Chargement de l\'album…');
+  try { renderAlbum(await api('/api/album/' + id)); } catch (e) { fail(e); }
+}
+
+function showResolved(r) {
+  if (r.kind === 'album') return renderAlbum(r.album);
+  if (r.kind === 'song') return renderAlbum(r.album, { only: r.n, note: r.note });
+  // Video hors catalogue musical
+  $('#view').innerHTML = `<div class="album">
+    ${lastResults ? '<button class="back" id="back">← Résultats</button>' : ''}
+    <h2 style="margin:0 0 6px">${esc(r.title)}</h2>
+    <div class="meta">${esc(r.artist || 'Artiste inconnu')} · ${esc(r.duration)}</div>
+    <div class="note">Cette vidéo n'est rattachée à aucun album YouTube Music : elle sera rangée dans <b>${esc(r.artist || 'Chaîne')}/Singles</b>.</div>
+    <div class="actions">
+      <input id="genre" placeholder="Genre (optionnel)">
+      <button class="btn primary" id="go">Télécharger ce titre</button>
+    </div></div>`;
+  if ($('#back')) $('#back').onclick = renderResults;
+  $('#go').onclick = () => enqueue({ videoId: r.videoId, title: r.title, artist: r.artist, genre: $('#genre').value });
+}
+
+// ---------- Album ----------
+function renderAlbum(a, opts = {}) {
+  const have = new Set(a.existing);
+  const checked = t => t.available && (opts.only ? t.n === opts.only : !t.suspect && !have.has(t.n));
+  $('#view').innerHTML = `<div class="album">
+    ${lastResults ? '<button class="back" id="back">← Résultats</button>' : ''}
+    <div class="ahead">
+      <img src="${esc(a.cover)}" alt="">
+      <div class="info">
+        <div class="meta">${esc(a.type)}</div>
+        <h2>${esc(a.title)}</h2>
+        <div class="meta">${esc(a.artist)}${a.year ? ' · ' + esc(a.year) : ''} · ${a.trackCount} titres</div>
+        <div class="meta" style="font-size:12px">${esc(a.folder)}${a.existing.length ? ` — ${a.existing.length} déjà présent(s)` : ''}</div>
+        ${a.versions.length ? `<div class="meta" style="margin-top:6px;font-size:12px">Autres éditions :</div>
+          <div class="chips">${a.versions.map(v => `<button class="chip" data-id="${esc(v.browseId)}">${esc(v.title)}</button>`).join('')}</div>` : ''}
+      </div>
+    </div>
+    ${opts.note ? `<div class="note">${esc(opts.note)}</div>` : ''}
+    <div class="tracks">${a.tracks.map(t => `
+      <label class="track ${t.available ? '' : 'off'}">
+        <input type="checkbox" data-n="${t.n}" ${checked(t) ? 'checked' : ''} ${t.available ? '' : 'disabled'}>
+        <span class="num">${t.n}</span>
+        <span class="ttl" title="${esc(t.title)}">${esc(t.title)}</span>
+        <span class="badges">
+          ${have.has(t.n) ? '<span class="badge b-have">déjà là</span>' : ''}
+          ${t.clip ? '<span class="badge b-clip" title="Version audio introuvable : la version clip sera utilisée">clip</span>' : ''}
+          ${t.suspect ? '<span class="badge b-sus" title="Live, remix, session… décoché par défaut">bonus</span>' : ''}
+          ${t.available ? '' : '<span class="badge b-na">indisponible</span>'}
+        </span>
+        <span class="dur">${esc(t.duration)}</span>
+      </label>`).join('')}</div>
+    <div class="actions">
+      <span class="sel" id="all">Tout</span><span class="sel" id="none">Rien</span>
+      <input id="genre" placeholder="Genre (optionnel)">
+      <button class="btn primary" id="go"></button>
+    </div></div>`;
+
+  const boxes = [...document.querySelectorAll('.track input:not(:disabled)')];
+  const update = () => {
+    const n = boxes.filter(b => b.checked).length;
+    $('#go').textContent = n === 1 ? 'Télécharger 1 titre' : `Télécharger ${n} titres`;
+    $('#go').disabled = !n;
+  };
+  boxes.forEach(b => b.onchange = update);
+  $('#all').onclick = () => { boxes.forEach(b => b.checked = true); update(); };
+  $('#none').onclick = () => { boxes.forEach(b => b.checked = false); update(); };
+  document.querySelectorAll('.chip').forEach(c => c.onclick = () => openAlbum(c.dataset.id));
+  if ($('#back')) $('#back').onclick = renderResults;
+  $('#go').onclick = () => enqueue({
+    browseId: a.browseId, genre: $('#genre').value,
+    numbers: boxes.filter(b => b.checked).map(b => +b.dataset.n),
+  });
+  update();
+}
+
+// ---------- File d'attente ----------
+async function enqueue(body) {
+  $('#go').disabled = true;
+  $('#go').textContent = 'Ajouté à la file ✓';
+  await api('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  refreshJobs();
+}
+
+function renderJobs(jobs) {
+  if (!jobs.length) return $('#jobs').innerHTML = '<div class="st" style="color:var(--muted);font-size:12px">Rien pour l\'instant.</div>';
+  $('#jobs').innerHTML = jobs.map(j => {
+    const st = j.status === 'terminé' ? `<div class="st ok">✓ ${esc(j.result)}</div>`
+      : j.status === 'erreur' ? `<div class="st err">✗ ${esc(j.result)}</div>`
+      : j.status === 'en cours' ? `<div class="st"><span class="spin"></span>${esc(j.current)}</div>`
+      : '<div class="st">En attente…</div>';
+    const bar = j.status === 'en cours' || j.status === 'en attente' ? `<div class="bar"><div style="width:${j.progress}%"></div></div>` : '';
+    return `<div class="job"><div class="l" title="${esc(j.label)}">${esc(j.label)}</div>${st}${bar}</div>`;
+  }).join('');
+}
+async function refreshJobs() { try { renderJobs(await api('/api/jobs')); } catch {} }
+$('#clear').onclick = async () => renderJobs(await api('/api/jobs/clear', { method: 'POST' }));
+api('/api/info').then(i => $('#path').textContent = 'Musique : ' + i.music);
+setInterval(refreshJobs, 1500);
+refreshJobs();
+// ?q=... dans l'adresse : recherche (ou lien) lancee directement
+const q0 = new URLSearchParams(location.search).get('q');
+if (q0) { $('#q').value = q0; search(); }
+</script>
+</body>
+</html>

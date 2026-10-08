@@ -28,18 +28,7 @@ pause
 exit /b 1
 :python_ok
 
-rem === ffmpeg dans bin\ (une seule fois, ~100 Mo) ===
-where ffmpeg >nul 2>&1
-if not errorlevel 1 goto :ffmpeg_ok
-if exist "%BIN%\ffmpeg.exe" goto :ffmpeg_ok
-echo Telechargement de ffmpeg...
-curl -L --fail -o "%BIN%\ffmpeg.zip" "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
-if errorlevel 1 goto :dl_error
-tar -xf "%BIN%\ffmpeg.zip" -C "%BIN%"
-for /r "%BIN%" %%F in (ffmpeg*.exe ffprobe*.exe) do if /i not "%%~dpF"=="%BIN%\" move /y "%%F" "%BIN%\" >nul
-del "%BIN%\ffmpeg.zip"
-for /d %%D in ("%BIN%\ffmpeg-*") do rmdir /s /q "%%D"
-:ffmpeg_ok
+rem ffmpeg : telecharge dans bin\ par app.py au premier lancement si absent
 
 rem === Environnement Python isole (.venv) ===
 if exist "%VENVPY%" goto :venv_ok

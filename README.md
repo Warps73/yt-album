@@ -17,7 +17,7 @@ Interface web locale pour télécharger des albums et des titres depuis YouTube 
 
 L'interface s'ouvre sur http://127.0.0.1:5123.
 
-Au premier lancement, le script installe ce qui manque (Python via winget sous Windows, `python3-venv` / `ffmpeg` via apt sous Linux, après confirmation), puis les bibliothèques Python dans `.venv/`.
+Au premier lancement, le script installe ce qui manque (Python via winget et ffmpeg dans `bin/` sous Windows, `python3-venv` / `ffmpeg` via apt sous Linux, après confirmation), puis les bibliothèques Python dans `.venv/`.
 À chaque lancement, l'app se met à jour depuis GitHub, et les bibliothèques (dont yt-dlp) une fois par jour.
 
 ## Réglages

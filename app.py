@@ -10,12 +10,14 @@ import queue
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
 import unicodedata
 import urllib.request
 import uuid
+import zipfile
 
 import yt_dlp
 from flask import Flask, jsonify, request, send_from_directory
@@ -24,8 +26,52 @@ from ytmusicapi import YTMusic
 from tag import clean_title, safe_name as safe, tag_album
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# ffmpeg peut etre fourni dans bin/ (cas Windows, installe par run.bat)
-os.environ['PATH'] = os.path.join(HERE, 'bin') + os.pathsep + os.environ.get('PATH', '')
+BIN = os.path.join(HERE, 'bin')
+FFMPEG_ZIP = 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'
+FFMPEG_DIR = None  # dossier de ffmpeg/ffprobe ; None = ceux du PATH (fixe au demarrage par ensure_ffmpeg)
+
+
+def _retry(fn, tries=10):
+    """Sous Windows, l'antivirus verrouille un moment les .exe tout juste ecrits."""
+    for i in range(tries):
+        try:
+            return fn()
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            time.sleep(1)
+
+
+def ensure_ffmpeg():
+    """Trouve ffmpeg + ffprobe ; sous Windows, les telecharge dans bin/ s'ils manquent."""
+    exe = '.exe' if os.name == 'nt' else ''
+    if all(os.path.isfile(os.path.join(BIN, n + exe)) for n in ('ffmpeg', 'ffprobe')):
+        return BIN
+    if shutil.which('ffmpeg') and shutil.which('ffprobe'):
+        return None
+    if os.name != 'nt':
+        sys.exit('ffmpeg manquant : sudo apt install ffmpeg')
+    print('Telechargement de ffmpeg (une seule fois, ~150 Mo)...')
+    os.makedirs(BIN, exist_ok=True)
+    tmp = os.path.join(BIN, 'ffmpeg.zip.part')
+    urllib.request.urlretrieve(FFMPEG_ZIP, tmp)
+    with zipfile.ZipFile(tmp) as z:
+        for name in z.namelist():
+            base = name.rsplit('/', 1)[-1]
+            if base in ('ffmpeg.exe', 'ffprobe.exe'):
+                part = os.path.join(BIN, base + '.part')
+                with z.open(name) as src, open(part, 'wb') as out:
+                    shutil.copyfileobj(src, out)
+                _retry(lambda: os.replace(part, os.path.join(BIN, base)))
+    _retry(lambda: os.remove(tmp))
+    if not all(os.path.isfile(os.path.join(BIN, n)) for n in ('ffmpeg.exe', 'ffprobe.exe')):
+        sys.exit('*** ffmpeg introuvable dans le zip telecharge. ***')
+    print('ffmpeg installe dans', BIN)
+    return BIN
+
+
+def ffmpeg_cmd():
+    return os.path.join(FFMPEG_DIR, 'ffmpeg') if FFMPEG_DIR else 'ffmpeg'
 
 
 def system_music_dir():
@@ -191,6 +237,7 @@ def download(vid, stage, prefix, on_progress):
         'outtmpl': os.path.join(stage, f'{prefix} - %(title)s.%(ext)s'),
         'noplaylist': True, 'quiet': True, 'no_warnings': True, 'noprogress': True, 'retries': 5,
         'progress_hooks': [hook],
+        **({'ffmpeg_location': FFMPEG_DIR} if FFMPEG_DIR else {}),
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '0'},
                            {'key': 'FFmpegMetadata', 'add_metadata': True}],
     }
@@ -207,7 +254,7 @@ def download(vid, stage, prefix, on_progress):
 def fetch_cover(url, dest):
     urllib.request.urlretrieve(url, dest)
     # Les miniatures video sont en 16:9 : recadrage carre au centre
-    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', dest, '-vf',
+    subprocess.run([ffmpeg_cmd(), '-loglevel', 'error', '-y', '-i', dest, '-vf',
                     "crop='min(iw,ih)':'min(iw,ih)'", '-q:v', '2', dest + '.jpg'], check=True)
     os.replace(dest + '.jpg', dest)
 
@@ -349,6 +396,10 @@ def clear_jobs():
 
 
 if __name__ == '__main__':
+    try:
+        FFMPEG_DIR = ensure_ffmpeg()
+    except OSError as e:
+        sys.exit(f'*** Installation de ffmpeg impossible : {e} ***')
     threading.Thread(target=worker, daemon=True).start()
     print(f'YT Album : http://127.0.0.1:{PORT}  (musique dans {MUSIC})')
     app.run(host='127.0.0.1', port=PORT, threaded=True)

@@ -1,28 +1,29 @@
 """YT Album : interface web locale pour telecharger albums et titres YouTube Music, proprement tagues.
 
-Lancement : ./run.sh  (puis http://127.0.0.1:5123)
-Lancement Windows : run.bat
+Installation : ./run.sh (Linux) ou run.bat (Windows) ; ensuite le raccourci "YT Album" (launcher.py).
 Dossier de sortie : $MUSIC_DIR, sinon le dossier Musique du systeme ; range en Artiste/Album/NN - Titre.mp3
 """
-import ctypes
+import glob
+import logging
 import os
 import queue
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 import threading
 import time
 import unicodedata
 import urllib.request
 import uuid
+import webbrowser
 import zipfile
 
 import yt_dlp
 from flask import Flask, jsonify, request, send_from_directory
 from ytmusicapi import YTMusic
 
+from launcher import NO_WINDOW, known_folder, xdg_dir
 from tag import clean_title, safe_name as safe, tag_album
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -50,7 +51,7 @@ def ensure_ffmpeg():
     if shutil.which('ffmpeg') and shutil.which('ffprobe'):
         return None
     if os.name != 'nt':
-        sys.exit('ffmpeg manquant : sudo apt install ffmpeg')
+        raise RuntimeError('ffmpeg manquant : sudo apt install ffmpeg')
     print('Telechargement de ffmpeg (une seule fois, ~150 Mo)...')
     os.makedirs(BIN, exist_ok=True)
     tmp = os.path.join(BIN, 'ffmpeg.zip.part')
@@ -65,7 +66,7 @@ def ensure_ffmpeg():
                 _retry(lambda: os.replace(part, os.path.join(BIN, base)))
     _retry(lambda: os.remove(tmp))
     if not all(os.path.isfile(os.path.join(BIN, n)) for n in ('ffmpeg.exe', 'ffprobe.exe')):
-        sys.exit('*** ffmpeg introuvable dans le zip telecharge. ***')
+        raise RuntimeError('ffmpeg introuvable dans le zip telecharge.')
     print('ffmpeg installe dans', BIN)
     return BIN
 
@@ -76,28 +77,12 @@ def ffmpeg_cmd():
 
 def system_music_dir():
     """Dossier Musique de l'utilisateur, y compris s'il a ete deplace (OneDrive, autre disque...)."""
-    if os.name == 'nt':
-        try:
-            class GUID(ctypes.Structure):
-                _fields_ = [('d1', ctypes.c_uint32), ('d2', ctypes.c_uint16), ('d3', ctypes.c_uint16),
-                            ('d4', ctypes.c_ubyte * 8)]
-            u = uuid.UUID('4BD8D571-6D19-48D3-BE97-422220080E43')  # FOLDERID_Music
-            g = GUID(u.fields[0], u.fields[1], u.fields[2], (ctypes.c_ubyte * 8).from_buffer_copy(u.bytes[8:]))
-            p = ctypes.c_wchar_p()
-            if ctypes.windll.shell32.SHGetKnownFolderPath(ctypes.byref(g), 0, None, ctypes.byref(p)) == 0:
-                path = p.value
-                ctypes.windll.ole32.CoTaskMemFree(p)
-                return path
-        except Exception:  # noqa: BLE001
-            pass
-    else:
-        try:
-            path = subprocess.run(['xdg-user-dir', 'MUSIC'], capture_output=True, text=True).stdout.strip()
-            if path and path != os.path.expanduser('~'):
-                return path
-        except OSError:
-            pass
-    return os.path.join(os.path.expanduser('~'), 'Music')
+    path = None
+    try:
+        path = known_folder('4BD8D571-6D19-48D3-BE97-422220080E43') if os.name == 'nt' else xdg_dir('MUSIC')
+    except Exception:  # noqa: BLE001
+        pass
+    return path or os.path.join(os.path.expanduser('~'), 'Music')
 
 
 MUSIC = os.path.expanduser(os.environ.get('MUSIC_DIR') or system_music_dir())
@@ -255,7 +240,7 @@ def fetch_cover(url, dest):
     urllib.request.urlretrieve(url, dest)
     # Les miniatures video sont en 16:9 : recadrage carre au centre
     subprocess.run([ffmpeg_cmd(), '-loglevel', 'error', '-y', '-i', dest, '-vf',
-                    "crop='min(iw,ih)':'min(iw,ih)'", '-q:v', '2', dest + '.jpg'], check=True)
+                    "crop='min(iw,ih)':'min(iw,ih)'", '-q:v', '2', dest + '.jpg'], check=True, **NO_WINDOW)
     os.replace(dest + '.jpg', dest)
 
 
@@ -322,7 +307,7 @@ def index():
 
 @app.get('/api/info')
 def info():
-    return jsonify({'music': MUSIC})
+    return jsonify({'app': 'yt-album', 'music': MUSIC})
 
 
 @app.get('/api/search')
@@ -395,11 +380,25 @@ def clear_jobs():
     return jsonify(jobs[::-1])
 
 
-if __name__ == '__main__':
-    try:
-        FFMPEG_DIR = ensure_ffmpeg()
-    except OSError as e:
-        sys.exit(f'*** Installation de ffmpeg impossible : {e} ***')
+@app.post('/api/quit')
+def quit_app():
+    threading.Timer(0.5, lambda: os._exit(0)).start()  # laisse le temps de repondre a la page
+    return jsonify({'ok': True})
+
+
+def serve(open_browser=False):
+    global FFMPEG_DIR
+    FFMPEG_DIR = ensure_ffmpeg()
+    # Dossiers temporaires d'un telechargement interrompu (app quittee en cours de route)
+    for stage in glob.glob(os.path.join(MUSIC, '.ytalbum-*')):
+        shutil.rmtree(stage, ignore_errors=True)
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)  # pas une ligne par rafraichissement de la file
     threading.Thread(target=worker, daemon=True).start()
     print(f'YT Album : http://127.0.0.1:{PORT}  (musique dans {MUSIC})')
+    if open_browser:
+        threading.Timer(1, webbrowser.open, [f'http://127.0.0.1:{PORT}']).start()
     app.run(host='127.0.0.1', port=PORT, threaded=True)
+
+
+if __name__ == '__main__':
+    serve()

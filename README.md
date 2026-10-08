@@ -8,17 +8,18 @@ Interface web locale pour télécharger des albums et des titres depuis YouTube 
 - Lives, remixes et sessions décochés par défaut ; titres déjà présents signalés
 - File d'attente pour enchaîner plusieurs albums
 
-## Lancement
+## Installation et lancement
 
-| Système | Commande |
-|---|---|
-| Linux | `./run.sh` |
-| Windows | double-clic sur `run.bat` |
+| Système | Première fois | Ensuite |
+|---|---|---|
+| Linux | `./run.sh` | raccourci « YT Album » (menu des applications ou Bureau) |
+| Windows | double-clic sur `run.bat` | raccourci « YT Album » (Bureau ou menu Démarrer) |
 
-L'interface s'ouvre sur http://127.0.0.1:5123.
+`run.sh` / `run.bat` installent ce qui manque (Python via winget et ffmpeg dans `bin/` sous Windows, `python3-venv` / `ffmpeg` via apt sous Linux, après confirmation), les bibliothèques Python dans `.venv/`, et créent le raccourci.
 
-Au premier lancement, le script installe ce qui manque (Python via winget et ffmpeg dans `bin/` sous Windows, `python3-venv` / `ffmpeg` via apt sous Linux, après confirmation), puis les bibliothèques Python dans `.venv/`.
-À chaque lancement, l'app se met à jour depuis GitHub, et les bibliothèques (dont yt-dlp) une fois par jour.
+L'app tourne ensuite en arrière-plan, sans console : le navigateur s'ouvre sur http://127.0.0.1:5123, et le bouton **Quitter** de l'interface l'arrête. Relancer le raccourci quand elle tourne déjà rouvre simplement l'onglet. Le journal est dans `yt-album.log`.
+
+À chaque lancement, l'app se met à jour depuis GitHub ; les bibliothèques (dont yt-dlp) une fois par jour.
 
 ## Réglages
 

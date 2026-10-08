@@ -17,14 +17,16 @@ REPO = 'Warps73/yt-album'
 BRANCH = 'main'
 HERE = os.path.dirname(os.path.abspath(__file__))
 VERSION_FILE = os.path.join(HERE, '.version')
-KEEP = {'.venv', 'bin', '.version', '.git'}  # jamais touches par la mise a jour
+KEEP = {'.venv', 'bin', '.version', '.git', 'yt-album.log'}  # jamais touches par la mise a jour
+NO_WINDOW = {'creationflags': 0x08000000} if os.name == 'nt' else {}
 
 
 def git_update():
     def head():
-        return subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=HERE, capture_output=True, text=True).stdout.strip()
+        return subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=HERE, capture_output=True, text=True,
+                              **NO_WINDOW).stdout.strip()
     before = head()
-    subprocess.run(['git', 'pull', '--ff-only', '-q'], cwd=HERE, capture_output=True, timeout=30)
+    subprocess.run(['git', 'pull', '--ff-only', '-q'], cwd=HERE, capture_output=True, timeout=30, **NO_WINDOW)
     return head() != before
 
 
@@ -56,7 +58,8 @@ def zip_update():
     return True
 
 
-if __name__ == '__main__':
+def run():
+    """True si une nouvelle version vient d'etre installee."""
     try:
         has_git = os.path.isdir(os.path.join(HERE, '.git')) and shutil.which('git')
         updated = git_update() if has_git else zip_update()
@@ -64,4 +67,8 @@ if __name__ == '__main__':
         updated = False
     if updated:
         print('YT Album mis a jour, redemarrage...')
-    sys.exit(3 if updated else 0)
+    return updated
+
+
+if __name__ == '__main__':
+    sys.exit(3 if run() else 0)

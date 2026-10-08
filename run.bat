@@ -2,13 +2,10 @@
 setlocal
 title YT Album
 cd /d "%~dp0"
-rem Lance YT Album (Windows) : http://127.0.0.1:5123
+rem Installe / met a jour YT Album (Windows), cree les raccourcis, puis le lance sans console.
+rem Ensuite, le raccourci "YT Album" du Bureau ou du menu Demarrer suffit.
 
-set "BIN=%~dp0bin"
 set "VENVPY=%~dp0.venv\Scripts\python.exe"
-set "STAMP=%~dp0.venv\last-update.txt"
-if not defined PORT set "PORT=5123"
-if not exist "%BIN%" mkdir "%BIN%"
 
 rem === Python 3 (installe via winget si absent) ===
 call :find_python
@@ -28,41 +25,21 @@ pause
 exit /b 1
 :python_ok
 
-rem ffmpeg : telecharge dans bin\ par app.py au premier lancement si absent
-
 rem === Environnement Python isole (.venv) ===
 if exist "%VENVPY%" goto :venv_ok
 echo Premiere installation...
 if exist ".venv" rmdir /s /q ".venv"
 %PY% -m venv .venv
-if errorlevel 1 goto :dl_error
+if errorlevel 1 goto :error
 :venv_ok
 
-rem === Mise a jour de l'app depuis GitHub (une seule ligne : ce fichier peut etre remplace pendant la mise a jour) ===
-if not defined YTA_UPDATED "%VENVPY%" update.py & if errorlevel 3 (set "YTA_UPDATED=1" & "%~f0" & exit /b)
+rem === Mises a jour, bibliotheques, ffmpeg, raccourcis ===
+rem Une seule ligne : la mise a jour peut remplacer ce fichier. Code 3 = app mise a jour, on relance ce script.
+"%VENVPY%" launcher.py --setup & if errorlevel 3 (set "YTA_UPDATED=1" & "%~f0" & exit /b)
+if errorlevel 1 goto :error
 
-rem === Bibliotheques : mise a jour au plus une fois par jour ===
-set "TODAY=%DATE%"
-set "LAST="
-if exist "%STAMP%" set /p LAST=<"%STAMP%"
-"%VENVPY%" -c "import flask, ytmusicapi, yt_dlp, mutagen" >nul 2>&1
-if errorlevel 1 goto :update
-if "%LAST%"=="%TODAY%" goto :start
-:update
-echo Mise a jour des bibliotheques...
-"%VENVPY%" -m pip -q install -U --timeout 10 --retries 1 -r requirements.txt
-if not errorlevel 1 (
-    > "%STAMP%" echo %TODAY%
-    goto :start
-)
-"%VENVPY%" -c "import flask, ytmusicapi, yt_dlp, mutagen" >nul 2>&1
-if errorlevel 1 goto :dl_error
-echo ATTENTION : mise a jour impossible ^(pas d'internet ?^), demarrage avec les versions deja installees.
-
-:start
-start "" "http://127.0.0.1:%PORT%"
-"%VENVPY%" app.py
-pause
+rem === Lancement sans console ===
+start "" "%~dp0.venv\Scripts\pythonw.exe" "%~dp0launcher.py"
 exit /b 0
 
 :find_python
@@ -82,8 +59,8 @@ rem Juste apres une installation winget, le PATH de cette console n'est pas enco
 for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do if exist "%%D\python.exe" set PY="%%D\python.exe"
 exit /b 0
 
-:dl_error
+:error
 echo.
-echo *** Impossible de telecharger les outils. Verifie ta connexion internet. ***
+echo *** L'installation a echoue (voir le message ci-dessus). Verifie ta connexion internet puis relance. ***
 pause
 exit /b 1
